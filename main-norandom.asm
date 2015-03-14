@@ -146,8 +146,6 @@ TEST_TRANS:
 	;check if the current count matches the label
 	movf	tempSampleL,W
 	sublw 	smplOvrfMa
-	movf	nextCount,W		;get the random variable
-	movwf	smplOvrfMx 		;set the new max variable to the random variable
 	btfsc	STATUS,Z
 	call	TRANSMIT
 	return
