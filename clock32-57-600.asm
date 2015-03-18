@@ -60,7 +60,7 @@ INIT:
 	clrf	smplOvrfCr
 	clrf	smplOvrfFl
 	banksel	OSCCON
-	movlw	b'01110000'
+	movlw	b'01111000'
 	movwf	OSCCON
 	;set id
 	banksel	deviceIDL
@@ -97,7 +97,7 @@ INIT:
 	movwf	ADCON2
 	;SERIAL COMM SETUP
 	banksel	TXSTA
-	movlw	b'10100000'
+	movlw	b'10100100' ;brgh enable
 	movwf	TXSTA
 	banksel	RCSTA
 	movlw	b'10010000'
@@ -107,7 +107,7 @@ INIT:
 	movlw	b'00000000' ;non inverted
 	movwf	BAUDCON
 	banksel	SPBRG
-	movlw	d'12'
+	movlw	d'34'
 	movwf	SPBRG
 	;test porta
 	banksel PORTA
@@ -121,7 +121,7 @@ INIT:
 	nop					;acquire...
 
 	banksel smplOvrfMx
-	movlw 	0x02
+	movlw 	0x40
 	movwf	smplOvrfMx	;preload 80 into the max for the init
 
 	;reset porta and clear smplOverfCr

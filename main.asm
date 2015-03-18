@@ -103,8 +103,8 @@ INIT:
 	movlw	b'10010000'
 	movwf	RCSTA
 	banksel	BAUDCON
-	movlw	b'00010000' ;inverted
-	;movlw	b'00000000' ;non inverted
+	;movlw	b'00010000' ;inverted
+	movlw	b'00000000' ;non inverted
 	movwf	BAUDCON
 	banksel	SPBRG
 	movlw	d'12'

@@ -97,7 +97,7 @@ INIT:
 	movwf	ADCON2
 	;SERIAL COMM SETUP
 	banksel	TXSTA
-	movlw	b'10100000'
+	movlw	b'10100100' ;brgh enable
 	movwf	TXSTA
 	banksel	RCSTA
 	movlw	b'10010000'
@@ -107,7 +107,7 @@ INIT:
 	movlw	b'00000000' ;non inverted
 	movwf	BAUDCON
 	banksel	SPBRG
-	movlw	d'12'
+	movlw	d'8'
 	movwf	SPBRG
 	;test porta
 	banksel PORTA
