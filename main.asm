@@ -47,13 +47,18 @@ nextCount		EQU 0x7B
 
 	goto 	INIT ;jump over the hamming lookup table
 
+;--------------------------HAMMING-----------------------
+;A Hamming Lookup used to transpose nibbles to byte
+;for extended hamming code.
 HAMMING:
 	incf 	nextCount,F
 	movf 	hammingReg,W
 	addwf	PCL,F
 	dt	b'00010101',b'00000010',b'01001001',b'01011110',b'01100100',b'01110011',b'00111000',b'00101111',b'11010000',b'11000111',b'10001100',b'10011011',b'10100001',b'10110110',b'11111101',0xEA
 
-
+;--------------------------INIT-----------------------
+;Configures various registers that adhere to components of
+;the PIC.
 INIT:
 	incf 	nextCount,F ;randomish increment of nextCount!
 	banksel	smplOvrfCr
@@ -131,13 +136,16 @@ INIT:
 	bsf 	PORTA,0
 
 
-
+;the MAIN loop...
 MAIN:
 	call	ADCONVERT
 	call	TEST_TRANS
 	goto	MAIN
 
-
+;--------------------------TEST_TRANS-----------------------
+;tests to see if the smplOverfFl register is set
+;if it is, nextCount will be tested for a match against smplOverfMx
+;if the result is zero, the packet will be transmitted.
 TEST_TRANS:
 	incf 	nextCount,F 	;randomish increment of nextCount!
 	banksel	tempSampleL
@@ -151,6 +159,7 @@ TEST_TRANS:
 	btfsc	STATUS,Z
 	call	TRANSMIT
 	return
+
 ;--------------------------ADC-----------------------
 ;RB3 from analogue to digital, stores the result
 ;in tempStoreL and tempStoreH
@@ -206,13 +215,8 @@ ADCONVERT:
 	call	ADDADCRESULT	;add the new sample to total
 	return
 
-;Parameters:
-;moveAddr - the address to move data from
-;storeAddr	- the address of the storage register
-;bitCount - where the AND should start
-;twBitMsk -	the bit to be set in the storage register
-;bitCountMax - the maximum bit bitCount should go to
-
+;-----------------------GT_FRM_ADRESL---------------------
+;moves the value from ADRESL to the address referenced in storeAddr
 GT_FRM_ADRESL:
 	incf 	nextCount,F
 	banksel	ADRESL
@@ -232,12 +236,8 @@ GT_FRM_ADRESL:
 	goto	GT_FRM_ADRESL;if not zero go round again
 	return
 
-;Parameters:
-;moveAddr - the address to move data from
-;storeAddr	- the address of the storage register
-;bitCount - where the AND should start
-;twBitMsk -	the bit to be set in the storage register
-;bitCountMax - the maximum bit bitCount should go to
+;-----------------------GT_FRM_ADRESH---------------------
+;moves the value from ADRESH to the address referenced in storeAddr
 
 GT_FRM_ADRESH:
 	incf 	nextCount,F
@@ -277,7 +277,7 @@ ADDTOSAMPLEH:
 	call	ADDANDRESET	;if we have reset
 	return				;otherwise return
 
-;when we have stored too many sample we need to reset
+;when we have stored too many samples we need to reset
 ;clear all registers
 ADDANDRESET:
 	incf 	nextCount,F
@@ -354,7 +354,8 @@ CHKSUM:
 	goto	CHKSUM		;repeat
 
 
-
+;-----------------------COMMSTEST---------------------
+;set specific values that can be recognised hub side
 COMMSTEST:
 	banksel	deviceIDL
 	movlw	0xAA
@@ -372,6 +373,9 @@ COMMSTEST:
 
 	return
 
+
+;-----------------------SETUPFORCOMMS---------------------
+;arrange concurrent memory ready for transmission
 SETUPFORCOMMS:
 	;shift sampleH left 4 times to make room for top four of tempsampleL
 	banksel	sampleH
@@ -411,7 +415,12 @@ SETUPFORCOMMS:
 
 	return
 
-
+;-----------------------STORE---------------------
+;Moves bits from one memory location to another
+;starting from bitCount to bitCountMax
+;twBitMsk is used to set the corresponding bit
+;in the storage register.
+;
 ;Parameters:
 ;moveAddr - the address to move data from
 ;storeAddr	- the address of the storage register
@@ -436,6 +445,8 @@ STORE:
 	goto	STORE;if not zero go round again
 	return				;o
 
+;-----------------------STOREONEDYN---------------------
+;Sets the bit in the storage register
 STOREONEDYN:
 	incf 	nextCount,F ;randomish increment of nextCount!
 	banksel	storeAddr
@@ -446,6 +457,8 @@ STOREONEDYN:
 	movwi	[INDF0]
 	return
 
+;-----------------------STOREZERODYN---------------------
+;Clears the bit in the storage register
 STOREZERODYN:
 	incf 	nextCount,F ;randomish increment of nextCount!
 	banksel	storeAddr
@@ -456,9 +469,11 @@ STOREZERODYN:
 	movwi	[INDF0]		;store the result in INDF0
 	return
 
-
-;FRAMING!!!
+;-----------------------SERIALCOMMS---------------------
+;communicates the values stored concurrently in memory
+;and encodes them using Extended Hamming Code
 SERIALCOMMS:
+  ;frame the packet!
 	banksel	startBit
 	movf	startBit,W
 	banksel	TXREG
@@ -471,18 +486,19 @@ SERIALLOOP:
 	movwf	tempResult
 	;trans lower 4 bits
 	andlw	0x0f
-	movwf	hammingReg
-	call	HAMMING
+	movwf	hammingReg ;used in the Hamming code lookup
+	call	HAMMING ;transpose the lower four bits to Hamming code
 	banksel	TXREG
 	movwf	TXREG
+  ;wait until transmitted
 	banksel	TXSTA
 	btfss 	TXSTA,TRMT
 	goto 	$-1
+
 	;trans upper 4 bits
 	swapf	tempResult,F
 	movf	tempResult,W
 	andlw	0x0F
-
 	;get hamming value
 	movwf	hammingReg
 	call	HAMMING
@@ -493,13 +509,14 @@ SERIALLOOP:
 	btfss 	TXSTA,TRMT
 	goto 	$-1
 	movf	FSR0,W
+  ;wait until transmitted
 	sublw	checkSum+1
 	btfss	STATUS,Z
 	goto	SERIALLOOP
 	return
 
-;----------------TRUE TIMER INTERRUPT---------------------
-
+;----------------TRANSMIT---------------------
+;sets up the concurrent memory, and transmits the data
 TRANSMIT:
 	banksel PORTA
 	bsf 	PORTA,7		;visualize communication
@@ -524,6 +541,12 @@ TRANSMIT:
 	bcf 	PORTA,7		;communication finished!
 	return				;return from interrupt
 	end
+
+
+
+
+
+
 
 
 ;----------------------------------------------------------------------------------------
